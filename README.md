@@ -70,3 +70,7 @@ W oknie głównym (Sim 0) dostępne są komendy:
 * **R** – Całkowity reset tabeli Q.
 
 Uwaga: Dla maksymalnej wydajności podczas długich sesji treningowych zaleca się ustawienie `use_graphics=False` w funkcji `start_sim`.
+
+# Uwaga
+Te algorytmy chodzą jak zagubione dzieci we mgle, niby coś się uczą ale nie jest to punkt końcowy.
+Jeszcze dłuuuuga droga przede mną...
