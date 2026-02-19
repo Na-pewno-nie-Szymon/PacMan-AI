@@ -1,0 +1,9 @@
+# Środowisko wirtualne
+venv/
+.env
+__pycache__/
+
+# Dane i mózgi (za ciężkie na Gita)
+*.csv
+*.pkl
+!best_brain_example.pkl  # (opcjonalnie: zostaw jeden wzorcowy mózg)
