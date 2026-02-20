@@ -125,7 +125,7 @@ class QLearningAgent:
         self.gamma = 0.99            # Współczynnik dyskontowania (patrzenie w przyszłość)
         
         # Unikalna ścieżka dla każdego procesu
-        self.brain_file = f"F:\\vs_code_workspace\\PacMan\\AI_pacman\\brain_sim_{sim_id}.pkl"
+        self.brain_file = f"AI_pacman\\brain_{sim_id}.pkl"
 
     def get_state(self, player, ghosts, bfs_suggested_action, is_scared_global, current_map):
         """
@@ -177,7 +177,8 @@ class QLearningAgent:
         return (
             tuple(surroundings), 
             bfs_suggested_action, 
-            dist_zone, 
+            #dist_zone,
+            nearest_ghost_dist, 
             ghost_rel_dir, 
             is_scared_global
         )
@@ -537,7 +538,7 @@ def log_to_csv(sim_id, episode_num, score, total_reward, epsilon, q_table_size, 
     """
     Zapisuje statystyki epizodu do osobnego pliku CSV dla każdej symulacji.
     """
-    file_path = f"F:\\vs_code_workspace\\PacMan\\AI_pacman\\analysis\\stats_sim_{sim_id}.csv"
+    file_path = f"AI_pacman\\analysis\\stats_sim_{sim_id}.csv"
     
     # Sprawdzamy czy plik istnieje, aby wiedzieć czy dopisać nagłówek
     file_exists = os.path.isfile(file_path)
@@ -786,34 +787,34 @@ def start_sim(sim_id, use_graphics=False):
             # 5. Logika ratunkowa
             # Lekki restart: powrót do Mistrza i EPS 0.5
             
-            if episode_count >= 1000 and episode_count % 500 == 0:
-                if episode_count % 1000 == 0:
-                    agent.alpha = max(0.01, agent.alpha * 0.9999)
-                old_avg_dots = avg_dots
-                avg_dots = sum(dots_history) / len(dots_history)
+            # if episode_count >= 1000 and episode_count % 500 == 0:
+            #     if episode_count % 1000 == 0:
+            #         agent.alpha = max(0.01, agent.alpha * 0.9999)
+            #     old_avg_dots = avg_dots
+            #     avg_dots = sum(dots_history) / len(dots_history)
 
-                if episode_count % 2500 == 0 and avg_dots > 155:
-                        agent.epsilon = 0.8
-                        print(f"🔥 [SIM {sim_id}] HARD RESET (Epizod {episode_count})! Średnia {avg_dots:.1f} to dramat. Szukamy wszystkiego od zera.")
+            #     if episode_count % 2500 == 0 and avg_dots > 155:
+            #             agent.epsilon = 0.8
+            #             print(f"🔥 [SIM {sim_id}] HARD RESET (Epizod {episode_count})! Średnia {avg_dots:.1f} to dramat. Szukamy wszystkiego od zera.")
 
-                should_reset = avg_dots > 152 or (avg_dots >= old_avg_dots and avg_dots > 50)
+            #     should_reset = avg_dots > 152 or (avg_dots >= old_avg_dots and avg_dots > 50)
                 
-                if should_reset:
-                    print(f">>> [SIM {sim_id}] KRYZYS STATYSTYCZNY! Średnia: {avg_dots:.1f} dots.")
+            #     # if should_reset:
+            #     #     print(f">>> [SIM {sim_id}] KRYZYS STATYSTYCZNY! Średnia: {avg_dots:.1f} dots.")
                     
-                    if best_q_table is not None:
-                        # Wracamy do mistrza, bo obecna ścieżka ewolucji to ślepy zaułek
-                        agent.q_table = copy.deepcopy(best_q_table)
-                        agent.epsilon = 0.3
-                        print(f"   -> Przywrócono Mistrza i podbito EPS do 0.3")
-                    else:
-                        # Jeśli nie ma mistrza, po prostu dajemy potężną dawkę losowości
-                        agent.epsilon = 0.7
-                        print(f"   -> Brak Mistrza. Hard Reset EPS do 0.7")
+            #     #     if best_q_table is not None:
+            #     #         # Wracamy do mistrza, bo obecna ścieżka ewolucji to ślepy zaułek
+            #     #         agent.q_table = copy.deepcopy(best_q_table)
+            #     #         agent.epsilon = 0.3
+            #     #         print(f"   -> Przywrócono Mistrza i podbito EPS do 0.3")
+            #     #     else:
+            #     #         # Jeśli nie ma mistrza, po prostu dajemy potężną dawkę losowości
+            #     #         agent.epsilon = 0.7
+            #     #         print(f"   -> Brak Mistrza. Hard Reset EPS do 0.7")
                 
-                else:
-                    # Progres jest OK, nie przeszkadzamy mu
-                    print(f">>> [SIM {sim_id}] Kontrola: Średnia {avg_dots:.1f} - uczy się poprawnie.")
+            #     # else:
+            #         # Progres jest OK, nie przeszkadzamy mu
+            #     print(f">>> [SIM {sim_id}] Kontrola: Średnia {avg_dots:.1f} - uczy się poprawnie.")
 
             # 6. Zapisywanie milestone'ów wiedzy
             q_size = len(agent.q_table)
