@@ -541,15 +541,15 @@ def log_to_csv(sim_id, episode_num, score, total_reward, epsilon, q_table_size, 
     file_path = f"AI_pacman\\analysis\\stats_sim_{sim_id}.csv"
     
     # Sprawdzamy czy plik istnieje, aby wiedzieć czy dopisać nagłówek
-    file_exists = os.path.isfile(file_path)
+    # file_exists = os.path.isfile(file_path)
 
     try:
-        with open(file_path, "w", newline="") as f:
+        with open(file_path, "a", newline="") as f:
             writer = csv.writer(f)
 
 
-            if not file_exists:
-                writer.writerow(["Episode", "Score", "Total Reward", "Epsilon", "States_Discovered", "Dots Left"])
+            # if not file_exists:
+            #     writer.writerow(["Episode", "Score", "Total Reward", "Epsilon", "States_Discovered", "Dots Left"])
             # Zapisujemy dane (zaokrąglamy dla czytelności pliku)
             writer.writerow([
                 episode_num, 
@@ -669,6 +669,14 @@ def start_sim(sim_id, use_graphics=False):
     # 5. PARAMETRY CZASOWE (Lokalne dla procesu)
     CHANGE_MODE_TIME = 300
     total_dots_start = dots_left # Zapamiętujemy ile było kropek na początku
+
+
+    # Nadpisywanie plików co kolejne odpalenie programu
+    file_path = f"AI_pacman\\analysis\\stats_sim_{sim_id}.csv"
+
+    with open(file_path, "w", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(["Episode", "Score", "Total Reward", "Epsilon", "States_Discovered", "Dots Left"])
 
     running = True
     while running:
