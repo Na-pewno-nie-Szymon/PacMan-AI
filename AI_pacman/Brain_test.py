@@ -13,7 +13,7 @@ from q_learn_pacman import (
 )
 
 # --- KONFIGURACJA TESTU ---
-BRAIN_ID = 2  # <--- WPISZ ID SYMULACJI, KTÓRA WYGRAŁA
+BRAIN_ID = 1  # <--- WPISZ ID SYMULACJI, KTÓRA WYGRAŁA
 ACTIONS = [(0, -1), (0, 1), (-1, 0), (1, 0)]
 
 def run_test():
