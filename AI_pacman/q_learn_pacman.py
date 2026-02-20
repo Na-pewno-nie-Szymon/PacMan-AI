@@ -544,7 +544,7 @@ def log_to_csv(sim_id, episode_num, score, total_reward, epsilon, q_table_size, 
     file_exists = os.path.isfile(file_path)
 
     try:
-        with open(file_path, "a", newline="") as f:
+        with open(file_path, "w", newline="") as f:
             writer = csv.writer(f)
 
 
