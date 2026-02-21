@@ -13,7 +13,7 @@ from q_learn_pacman import (
 )
 
 # --- KONFIGURACJA TESTU ---
-BRAIN_ID = 1  # <--- WPISZ ID SYMULACJI, KTÓRA WYGRAŁA
+BRAIN_ID = 4  # <--- WPISZ ID SYMULACJI, KTÓRA WYGRAŁA
 ACTIONS = [(0, -1), (0, 1), (-1, 0), (1, 0)]
 
 def run_test():
@@ -38,10 +38,10 @@ def run_test():
     # Inicjalizacja gry
     current_map = copy.deepcopy(GAME_MAP_TEMPLATE)
     player = Player(GAME_MAP_TEMPLATE)
-    ghosts = [
-        Ghost(9, 9, RED, 0), Ghost(9, 10, PINK, 60), 
-        Ghost(8, 10, CYAN, 120), Ghost(10, 10, ORANGE, 180)
-    ]
+    ghosts = []
+    #    Ghost(9, 9, RED, 0), Ghost(9, 10, PINK, 60), 
+    #    Ghost(8, 10, CYAN, 120), Ghost(10, 10, ORANGE, 180)
+    #]
     
     map_bg_surface = pygame.Surface((GAME_WIDTH, GAME_HEIGHT)).convert()
     pre_render_map(map_bg_surface, current_map)
@@ -68,7 +68,7 @@ def run_test():
             bfs_hint = get_bfs_direction_to_food((cx, cy), current_map)
             
             # Agent wybiera akcję tylko na podstawie wiedzy (epsilon=0)
-            curr_state = agent.get_state(player, ghosts, bfs_hint, scared_mode, current_map)
+            curr_state = agent.get_state(player, ghosts, scared_mode, bfs_hint, current_map)
             valid_moves = get_valid_moves(player, current_map)
             action_idx = agent.choose_action(curr_state, valid_moves)
             player.next_direction = ACTIONS[action_idx]
