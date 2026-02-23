@@ -13,7 +13,7 @@ from q_learn_pacman import (
 )
 
 # --- KONFIGURACJA TESTU ---
-BRAIN_ID = 4  # <--- WPISZ ID SYMULACJI, KTÓRA WYGRAŁA
+BRAIN_ID = 3  # <--- WPISZ ID SYMULACJI, KTÓRA WYGRAŁA
 ACTIONS = [(0, -1), (0, 1), (-1, 0), (1, 0)]
 
 def run_test():
@@ -33,12 +33,14 @@ def run_test():
         return
 
     # WYŁĄCZAMY LOSOWOŚĆ - Pac-Man ma grać najlepiej jak umie
-    agent.epsilon = 0 
+    agent.epsilon = 0.05 
     
     # Inicjalizacja gry
     current_map = copy.deepcopy(GAME_MAP_TEMPLATE)
     player = Player(GAME_MAP_TEMPLATE)
-    ghosts = []
+    ghosts = [Ghost(8, 9, RED, 0), 
+            Ghost(9, 9, PINK, 60),
+            Ghost(8, 10, CYAN, 120)]
     #    Ghost(9, 9, RED, 0), Ghost(9, 10, PINK, 60), 
     #    Ghost(8, 10, CYAN, 120), Ghost(10, 10, ORANGE, 180)
     #]
