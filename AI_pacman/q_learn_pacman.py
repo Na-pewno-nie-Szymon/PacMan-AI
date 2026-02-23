@@ -122,7 +122,7 @@ class QLearningAgent:
         self.epsilon = 1.0           # Początkowa eksploracja
         self.epsilon_min = 0.05      # Minimalna losowość
         self.alpha = 0.3            # Współczynnik uczenia (learning rate)
-        self.gamma = 0.99            # Współczynnik dyskontowania (patrzenie w przyszłość)
+        self.gamma = 0.97            # Współczynnik dyskontowania (patrzenie w przyszłość)
         
         # Unikalna ścieżka dla każdego procesu
         self.brain_file = f"AI_pacman\\brain_{sim_id}.pkl"
@@ -781,15 +781,15 @@ def start_sim(sim_id, use_graphics=False):
         reward = 0
         
         if hit:
-            reward -= 500
+            reward -= 1650
         elif score_diff > 0: 
-            reward = 100
-        else: 
-            # Jeśli nie je, to musi chociaż iść w stronę jedzenia
-            if bfs_hint is not None and player.direction == actions[bfs_hint]:
-                reward = 2   # Głaskanie po głowie: "dobrze idziesz, kontynuuj"
-            else:
-                reward = -5  # Bolesna kara: "nie stój, nie błądź, czas to pieniądz!"
+            reward += 10
+        # else: 
+        #     # Jeśli nie je, to musi chociaż iść w stronę jedzenia
+        #     if bfs_hint is not None and player.direction == actions[bfs_hint]:
+        #         reward += 2   # Głaskanie po głowie: "dobrze idziesz, kontynuuj"
+        #     else:
+        #         reward = -5  # Bolesna kara: "nie stój, nie błądź, czas to pieniądz!"
         
         game_stats["current_reward"] = reward
         game_stats["total_reward"] += reward
@@ -822,7 +822,11 @@ def start_sim(sim_id, use_graphics=False):
                 print(f">>> [SIM {sim_id}] Gra: {episode_count} | EPS: {agent.epsilon:.3f} | States: {len(agent.q_table)}")
 
             # 4. JEDEN spadek epsilonu
+<<<<<<< HEAD
+            agent.epsilon = max(agent.epsilon_min, agent.epsilon * 0.999) 
+=======
             agent.epsilon = max(agent.epsilon_min, agent.epsilon * EPSILON_DECAY) 
+>>>>>>> 2f9899d212b367a4fe46ceafb2b6d7f4cb6979dd
 
             # 5. Logika ratunkowa
             # Lekki restart: powrót do Mistrza i EPS 0.5
