@@ -58,7 +58,8 @@ GAME_HEIGHT = HEIGHT_TILES * TILE_SIZE
 SCREEN_WIDTH = GAME_WIDTH
 SCREEN_HEIGHT = GAME_HEIGHT + (UI_HEIGHT * 2)
 
-# --- PARAMETRY PORUSZANIA PACMAN ---
+# --- PARAMETRY AI PACMAN ---
+EPSILON_DECAY = 0.9999  
 MAX_DEPTH = 5
 
 def pre_render_map(surface, grid):
@@ -821,7 +822,7 @@ def start_sim(sim_id, use_graphics=False):
                 print(f">>> [SIM {sim_id}] Gra: {episode_count} | EPS: {agent.epsilon:.3f} | States: {len(agent.q_table)}")
 
             # 4. JEDEN spadek epsilonu
-            agent.epsilon = max(agent.epsilon_min, agent.epsilon * 0.999999) 
+            agent.epsilon = max(agent.epsilon_min, agent.epsilon * EPSILON_DECAY) 
 
             # 5. Logika ratunkowa
             # Lekki restart: powrót do Mistrza i EPS 0.5
