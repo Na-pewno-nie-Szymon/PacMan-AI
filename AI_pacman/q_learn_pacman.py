@@ -401,7 +401,7 @@ class Player:
         self.direction = (0, 0)
         self.next_direction = (0, 0)
 
-    def move(self, current_map, walls_list, agent):
+    def move(self, current_map, walls_list):
         """
         Zwraca: (score_gain, dots_eaten, scared_trigger)
         """
@@ -745,7 +745,7 @@ def start_sim(sim_id, use_graphics=False):
             last_action_idx = action_idx
 
         # C. RUCH PAC-MANA
-        s_gain, d_eaten, s_trigger = player.move(current_map, walls_list, agent)
+        s_gain, d_eaten, s_trigger = player.move(current_map, walls_list)
         score += s_gain
         dots_left -= d_eaten
         if s_trigger:
@@ -893,7 +893,7 @@ if __name__ == "__main__":
     
     for i in range(num_sims):
         # Tylko pierwsza symulacja (ID 0) ma okno (True)
-        p = multiprocessing.Process(target=start_sim, args=(i, False))
+        p = multiprocessing.Process(target=start_sim, args=(i, i==0))
         p.start()
         processes.append(p)
         
