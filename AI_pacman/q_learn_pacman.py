@@ -165,9 +165,9 @@ class QLearningAgent:
         # Nie chcemy dokładnej liczby pól (np. 4.5), bo to stworzy za dużo stanów.
         # Dzielimy odległość na 4 strefy:
         # 0: brak zagrożenia (bardzo daleko), 1: blisko (3-5 pól), 2: krytycznie (1-2 pola)
-        if nearest_ghost_dist <= 3:
+        if nearest_ghost_dist <= 2:
             dist_zone = 2
-        elif nearest_ghost_dist <= 6:
+        elif nearest_ghost_dist <= 5:
             dist_zone = 1
         else:
             dist_zone = 0
