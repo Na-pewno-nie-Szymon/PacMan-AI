@@ -4,6 +4,8 @@ import random
 import math
 import copy
 import socket 
+import threading
+import json
 
 # --- KONFIGURACJA KOLORÓW ---
 BLACK = (0, 0, 0)           # Tło
@@ -45,6 +47,28 @@ GAME_MAP_TEMPLATE = [
 ]
 
 GAME_MAP = copy.deepcopy(GAME_MAP_TEMPLATE)
+
+
+####### NETWORK
+def send_msg(conn, data_dict):
+    msg = json.dumps(data_dict).encode()
+    conn.sendall(len(msg).to_bytes(4, "big") + msg)
+
+def recv_msg(conn):
+    length_bytes = conn.recv(4)
+    if not length_bytes:
+        return None
+    length = int.from_bytes(length_bytes, "big")
+
+    data = b""
+    while len(data) < length:
+        packet = conn.recv(length - len(data))
+        if not packet:
+            return None
+        data += packet
+
+    return json.loads(data.decode())
+
 
 # --- ŚCIANY BEZ OFFSETU (Liczymy od 0,0) ---
 WALLS = []
@@ -385,34 +409,60 @@ ghost_mode = "CHASE"
 mode_timer = 0
 CHANGE_MODE_TIME = 300
 
-sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-sock.bind(("", 50007))
-print("connected to socket")
-sock.listen(1)
-conn, addr = sock.accept()
-with conn:
-    print('Connected by', addr)
-    while True:
-        data = conn.recv(1024)
-        if not data: break
-        conn.sendall(data)
+HOST = ''                 # Symbolic name meaning all available interfaces
+PORT = 5555
+
+last_input = None
+conn = None
+
+server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+server.bind((HOST, PORT))
+server.listen(1)
+
+print("Waiting for client to connect...")
+conn, addr = server.accept()
+print("Client connected:", addr)
 
 
 # --- PĘTLA ---
 running = True
 while running:
+
+    #print("Game running?")
+    data = conn.recv(1024).decode()
+    #print("Game running? 2")
+    if not data:
+        break
+
+    print("Data: ", data)
+    if str(data) == "UP":
+        player.next_direction = (0,-1)
+    elif str(data) == "DOWN":
+        player.next_direction = (0,1)
+    elif str(data) == "LEFT":
+        player.next_direction = (-1,0)
+    elif str(data) == "RIGHT":
+        player.next_direction = (1,0)
+
+
     for event in pygame.event.get():
         if event.type == pygame.QUIT: running = False
         if event.type == pygame.MOUSEBUTTONDOWN:
             if reset_button_rect.collidepoint(event.pos):
                 reset_game()
         if event.type == pygame.KEYDOWN:
-            if game_state == "PLAYING":
-                if event.key == pygame.K_UP: player.next_direction = (0, -1)
-                elif event.key == pygame.K_DOWN: player.next_direction = (0, 1)
-                elif event.key == pygame.K_LEFT: player.next_direction = (-1, 0)
-                elif event.key == pygame.K_RIGHT: player.next_direction = (1, 0)
-            elif event.key == pygame.K_SPACE: reset_game()
+            if game_state != "PLAYING":
+                if event.key == pygame.K_UP: 
+                    player.next_direction = (0, -1)
+                elif event.key == pygame.K_DOWN: 
+                    player.next_direction = (0, 1)
+                elif event.key == pygame.K_LEFT: 
+                    player.next_direction = (-1, 0)
+                elif event.key == pygame.K_RIGHT: 
+                    player.next_direction = (1, 0)   
+                if event.key == pygame.K_SPACE: 
+                    reset_game()
+    
 
     if game_state == "PLAYING":
         player.move()
@@ -473,7 +523,8 @@ while running:
 
     # WKLEJAMY KARTKĘ Z GRĄ NA EKRAN GŁÓWNY
     screen.blit(game_surface, (0, UI_HEIGHT))
-
+    send_mess = "u can go"
+    conn.send(send_mess.encode())
     pygame.display.flip()
     clock.tick(60)
 
