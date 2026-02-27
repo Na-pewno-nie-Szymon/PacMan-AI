@@ -4,7 +4,7 @@ import os
 import glob
 
 # --- KONFIGURACJA ---
-LOG_DIR = r"F:\vs_code_workspace\PacMan\AI_pacman\analysis"
+LOG_DIR = r"AI_pacman\\analysis"
 SMOOTHING_WINDOW = 50  # Zwiększyłem wygładzanie, żeby lepiej widzieć trendy
 
 def plot_results():

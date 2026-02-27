@@ -58,6 +58,10 @@ GAME_HEIGHT = HEIGHT_TILES * TILE_SIZE
 SCREEN_WIDTH = GAME_WIDTH
 SCREEN_HEIGHT = GAME_HEIGHT + (UI_HEIGHT * 2)
 
+# --- PARAMETRY AI PACMAN ---
+EPSILON_DECAY = 0.9999  
+MAX_DEPTH = 5
+
 def pre_render_map(surface, grid):
     """Renderuje ściany na podanej powierzchni na podstawie dostarczonej mapy."""
     surface.fill(BLACK)
@@ -98,19 +102,15 @@ def get_bfs_direction_to_food(start_pos, grid):
             return path[0] # Zwracamy indeks pierwszego ruchu na ścieżce
         
         for dx, dy, move_idx in deltas:
-            nx, ny = cx + dx, cy + dy
+            nx = (cx + dx) % WIDTH_TILES
+            ny = (cy + dy) % HEIGHT_TILES
 
             # Sprawdzamy granice mapy i czy nie wchodzimy w ścianę (1)
             if 0 <= nx < WIDTH_TILES and 0 <= ny < HEIGHT_TILES:
                 if grid[ny][nx] != 1 and (nx, ny) not in visited:
                     visited.add((nx, ny))
-                    # Tworzymy nową ścieżkę z dodanym ruchem
                     new_path = list(path)
-                    if not new_path: 
-                        new_path.append(move_idx)
-                    else:
-                        # Wystarczy nam tylko pierwszy krok, ale path pomaga w logice BFS
-                        new_path.append(move_idx)
+                    new_path.append(move_idx)
                     queue.append((nx, ny, new_path))
     return None
 
@@ -121,36 +121,105 @@ class QLearningAgent:
         self.q_table = {}
         self.epsilon = 1.0           # Początkowa eksploracja
         self.epsilon_min = 0.05      # Minimalna losowość
-        self.alpha = 0.2            # Współczynnik uczenia (learning rate)
-        self.gamma = 0.99            # Współczynnik dyskontowania (patrzenie w przyszłość)
+        self.alpha = 0.3            # Współczynnik uczenia (learning rate)
+        self.gamma = 0.97            # Współczynnik dyskontowania (patrzenie w przyszłość)
         
         # Unikalna ścieżka dla każdego procesu
-        self.brain_file = f"F:\\vs_code_workspace\\PacMan\\AI_pacman\\brain_sim_{sim_id}.pkl"
+        self.brain_file = f"AI_pacman\\brain_{sim_id}.pkl"
 
-    def get_state(self, player, ghosts, bfs_suggested_action, is_scared_global, current_map):
+    def get_true_distance(self, pacman_pos, target_pos, current_map, max_depth=5):
         """
-        Ulepszona wersja stanu: dodaje kierunek ducha, dystans i informację o trybie strachu.
+        Zoptymalizowany pod Twój current_map BFS.
+        """
+        # 1. Toroidal Manhattan (uwzględnia tunele!)
+        # Liczymy krótszy dystans: albo normalnie w poprzek mapy, albo przez tunel na zewnątrz.
+        dx = abs(pacman_pos[0] - target_pos[0])
+        dy = abs(pacman_pos[1] - target_pos[1])
+        wrap_dx = min(dx, WIDTH_TILES - dx)
+        wrap_dy = min(dy, HEIGHT_TILES - dy)
+
+        # Szybki test Manhattana
+        manhattan_dist = wrap_dx + wrap_dy
+
+        if manhattan_dist > max_depth:
+            return 999 
+
+        queue = collections.deque([(pacman_pos, 0)])
+        visited = set()
+        visited.add(pacman_pos)
+        
+        directions = [(0, -1), (0, 1), (-1, 0), (1, 0)]
+
+        while queue:
+            current_pos, dist = queue.popleft()
+
+            if current_pos == target_pos:
+                return dist
+
+            if dist >= max_depth:
+                continue 
+
+            for dx, dy in directions:
+                nx = (current_pos[0] + dx) % WIDTH_TILES
+                ny = (current_pos[1] + dy) % HEIGHT_TILES
+                
+                # Używamy Twojej tablicy current_map (1 to ściana) - ultraszybkie!
+                if current_map[ny][nx] != 1 and (nx, ny) not in visited:
+                    visited.add((nx, ny))
+                    queue.append(((nx, ny), dist + 1))
+                        
+        return 999 
+
+    def get_state(self, player, ghosts, is_scared_global, bfs_suggested_action, current_map):
+        """
+        Ultra-prosty mózg nastawiony TYLKO na żarcie. Max 64 stany.
         """
         px, py = int(player.x // TILE_SIZE), int(player.y // TILE_SIZE)
         
-        # 1. Otoczenie (ściany, jedzenie, pusta droga) - bez zmian
-        surroundings = []
+        # 1. ŚCIANY (Z obsługą tuneli)
+        walls = []
         for dx, dy in [(0, -1), (0, 1), (-1, 0), (1, 0)]:
-            nx, ny = px + dx, py + dy
-            if 0 <= nx < WIDTH_TILES and 0 <= ny < HEIGHT_TILES:
-                tile = current_map[ny][nx]
-                if tile == 1: surroundings.append(0)   # ŚCIANA
-                elif tile in [0, 4]: surroundings.append(2) # JEDZENIE
-                else: surroundings.append(1)           # PUSTA DROGA
-            else:
-                surroundings.append(0)
+            nx, ny = (px + dx) % WIDTH_TILES, (py + dy) % HEIGHT_TILES
+            walls.append(current_map[ny][nx] == 1)
+        
+        wall_state = tuple(walls)
 
-        # 2. Inteligentny radar najbliższego ducha
-        nearest_ghost_dist = 999
-        ghost_rel_dir = (0, 0) # Relatywny kierunek (x, y) gdzie x, y to {-1, 0, 1}
+        # 2. GPS DO JEDZENIA (Zwraca indeks 0-3, albo -1 jak nie ma jedzenia)
+        food_dir = bfs_suggested_action if bfs_suggested_action is not None else -1
+
+        # 3. RADAR ZAGROŻENIA (BFS z obsługą tuneli)
+        threat_up = 0
+        threat_down = 0
+        threat_left = 0
+        threat_right = 0
 
         for g in ghosts:
             gx, gy = int(g.x // TILE_SIZE), int(g.y // TILE_SIZE)
+            dist = self.get_true_distance((px, py), (gx, gy), current_map, max_depth=MAX_DEPTH)
+
+            if dist <= 4:
+                threat_level = 2 if dist <= 2 else 1
+
+                dx = gx - px
+                dy = gy - py
+
+                if dx > WIDTH_TILES / 2: dx -= WIDTH_TILES
+                elif dx < -WIDTH_TILES / 2: dx += WIDTH_TILES
+
+                if dy > HEIGHT_TILES / 2: dy -= HEIGHT_TILES
+                elif dy < -HEIGHT_TILES / 2: dy += HEIGHT_TILES
+
+                # Zapalamy odpowiednią lampkę alarmową
+                if abs(dx) > abs(dy):
+                    if dx > 0: threat_right = max(threat_right, threat_level)
+                    else: threat_left = max(threat_left, threat_level)
+                else:
+                    if dy > 0: threat_down = max(threat_left, threat_level)
+                    else: threat_up = max(threat_left, threat_level)
+
+        danger_zone = (threat_up, threat_down, threat_left, threat_right)
+
+        return (wall_state, food_dir, danger_zone, is_scared_global)
             # Obliczamy odległość Manhattan: $d = |x_1 - x_2| + |y_1 - y_2|$
             dist = abs(px - gx) + abs(py - gy)
             
@@ -183,11 +252,9 @@ class QLearningAgent:
         )
 
     def choose_action(self, state, valid_moves):
-        """Wybiera ruch: albo losowy (eksploracja), albo najlepszy znany (eksploatacja)."""
         if state not in self.q_table:
             self.q_table[state] = [0.0] * len(self.actions)
         
-        # Strategia Epsilon-Greedy
         if random.random() < self.epsilon: 
             return random.choice(valid_moves)
 
@@ -202,11 +269,6 @@ class QLearningAgent:
         return best_action
 
     def learn(self, state, action_idx, reward, next_state):
-        """
-        Aktualizuje wartość Q dla danej akcji na podstawie otrzymanej nagrody.
-        Używa wzoru Bellmana:
-        """
-        
         if state not in self.q_table:
             self.q_table[state] = [0.0] * len(self.actions)
         if next_state not in self.q_table:
@@ -215,13 +277,12 @@ class QLearningAgent:
         old_v = self.q_table[state][action_idx]
         next_max = max(self.q_table[next_state])
         
-        # Aktualizacja wiedzy
         self.q_table[state][action_idx] = old_v + self.alpha * (reward + self.gamma * next_max - old_v)
 
     def save_brain(self):
         try:
             folder = os.path.dirname(self.brain_file)
-            if folder: # Sprawdza czy ścieżka nie jest pusta
+            if folder:
                 os.makedirs(folder, exist_ok=True)
 
             with open(self.brain_file, "wb") as f:
@@ -236,7 +297,7 @@ class QLearningAgent:
             try:
                 with open(self.brain_file, "rb") as f:
                     self.q_table = pickle.load(f)
-                self.epsilon = 0.05 # Mała losowość po wczytaniu dla testów
+                self.epsilon = 0.05 
                 return True
             except Exception as e:
                 print(f"Błąd odczytu mózgu: {e}")
@@ -370,7 +431,7 @@ class Player:
         self.direction = (0, 0)
         self.next_direction = (0, 0)
 
-    def move(self, current_map, walls_list, agent):
+    def move(self, current_map, walls_list):
         """
         Zwraca: (score_gain, dots_eaten, scared_trigger)
         """
@@ -520,7 +581,7 @@ def get_valid_moves(player, current_map):
     check_dirs = [(0, -1, 0), (0, 1, 1), (-1, 0, 2), (1, 0, 3)]
 
     for dx, dy, idx in check_dirs:
-        nx, ny = px + dx, py + dy
+        nx, ny = (px + dx) % WIDTH_TILES, (py + dy) % HEIGHT_TILES
 
         # 1. Obsługa tunelu: jeśli wyjdzie poza szerokość, pozwól na ruch (teleportacja)
         if not (0 <= nx < WIDTH_TILES):
@@ -537,18 +598,18 @@ def log_to_csv(sim_id, episode_num, score, total_reward, epsilon, q_table_size, 
     """
     Zapisuje statystyki epizodu do osobnego pliku CSV dla każdej symulacji.
     """
-    file_path = f"F:\\vs_code_workspace\\PacMan\\AI_pacman\\analysis\\stats_sim_{sim_id}.csv"
+    file_path = f"AI_pacman\\analysis\\stats_sim_{sim_id}.csv"
     
     # Sprawdzamy czy plik istnieje, aby wiedzieć czy dopisać nagłówek
-    file_exists = os.path.isfile(file_path)
+    # file_exists = os.path.isfile(file_path)
 
     try:
         with open(file_path, "a", newline="") as f:
             writer = csv.writer(f)
 
 
-            if not file_exists:
-                writer.writerow(["Episode", "Score", "Total Reward", "Epsilon", "States_Discovered", "Dots Left"])
+            # if not file_exists:
+            #     writer.writerow(["Episode", "Score", "Total Reward", "Epsilon", "States_Discovered", "Dots Left"])
             # Zapisujemy dane (zaokrąglamy dla czytelności pliku)
             writer.writerow([
                 episode_num, 
@@ -651,9 +712,9 @@ def start_sim(sim_id, use_graphics=False):
         gx, gy = 9, 10
         ghosts = [
             Ghost(gx, 9, RED, 0), 
-            Ghost(gx, 10, PINK, 60), 
-            Ghost(8, 10, CYAN, 120), 
-            Ghost(10, 10, ORANGE, 180)
+            Ghost(gx, 10, PINK, 60),
+            Ghost(8, 10, CYAN, 120)
+            #Ghost(10, 10, ORANGE, 180)
         ]
         ghost_mode = "CHASE"
         mode_timer = 0
@@ -668,6 +729,14 @@ def start_sim(sim_id, use_graphics=False):
     # 5. PARAMETRY CZASOWE (Lokalne dla procesu)
     CHANGE_MODE_TIME = 300
     total_dots_start = dots_left # Zapamiętujemy ile było kropek na początku
+
+
+    # Nadpisywanie plików co kolejne odpalenie programu
+    file_path = f"AI_pacman\\analysis\\stats_sim_{sim_id}.csv"
+
+    with open(file_path, "w", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(["Episode", "Score", "Total Reward", "Epsilon", "States_Discovered", "Dots Left"])
 
     running = True
     while running:
@@ -692,7 +761,7 @@ def start_sim(sim_id, use_graphics=False):
             bfs_hint = get_bfs_direction_to_food((cx, cy), current_map)
             
             # Pobieramy stan i wybieramy akcję
-            curr_state = agent.get_state(player, ghosts, bfs_hint, scared_mode, current_map)
+            curr_state = agent.get_state(player, ghosts, scared_mode, bfs_hint, current_map)
             valid_moves = get_valid_moves(player, current_map)
             action_idx = agent.choose_action(curr_state, valid_moves)
             
@@ -706,7 +775,7 @@ def start_sim(sim_id, use_graphics=False):
             last_action_idx = action_idx
 
         # C. RUCH PAC-MANA
-        s_gain, d_eaten, s_trigger = player.move(current_map, walls_list, agent)
+        s_gain, d_eaten, s_trigger = player.move(current_map, walls_list)
         score += s_gain
         dots_left -= d_eaten
         if s_trigger:
@@ -741,15 +810,16 @@ def start_sim(sim_id, use_graphics=False):
         score_diff = score - old_score
         reward = 0
         
-        if hit: 
-            reward = -500
+        if hit:
+            reward -= 1650
         elif score_diff > 0: 
-            reward = 100
-        else: 
-            if bfs_hint is not None and player.direction == actions[bfs_hint]:
-                reward = 15
-            else:
-                reward = -10
+            reward += 10
+        # else: 
+        #     # Jeśli nie je, to musi chociaż iść w stronę jedzenia
+        #     if bfs_hint is not None and player.direction == actions[bfs_hint]:
+        #         reward += 2   # Głaskanie po głowie: "dobrze idziesz, kontynuuj"
+        #     else:
+        #         reward = -5  # Bolesna kara: "nie stój, nie błądź, czas to pieniądz!"
         
         game_stats["current_reward"] = reward
         game_stats["total_reward"] += reward
@@ -762,11 +832,12 @@ def start_sim(sim_id, use_graphics=False):
 
             if hit:
                 if last_state: 
-                    agent.learn(last_state, last_action_idx, -500, agent.get_state(player, ghosts, None, scared_mode, current_map))
+                    dead_state = agent.get_state(player, ghosts, scared_mode, None, current_map)
+                    agent.learn(last_state, last_action_idx, -500, dead_state)
             else:
                 wins_count += 1
                 if last_state: agent.learn(last_state, last_action_idx, 1000, last_state)
-                print(f">>> [SIM {sim_id}] WYGRANA nr {wins_count}! Epizod: {episode_count}")    
+                #print(f">>> [SIM {sim_id}] WYGRANA nr {wins_count}! Epizod: {episode_count}")    
 
             # System rekordów i zapisu
             if dots_left < best_dots_ever:
@@ -781,39 +852,39 @@ def start_sim(sim_id, use_graphics=False):
                 print(f">>> [SIM {sim_id}] Gra: {episode_count} | EPS: {agent.epsilon:.3f} | States: {len(agent.q_table)}")
 
             # 4. JEDEN spadek epsilonu
-            agent.epsilon = max(agent.epsilon_min, agent.epsilon * 0.9998) 
+            agent.epsilon = max(agent.epsilon_min, agent.epsilon * EPSILON_DECAY) 
 
             # 5. Logika ratunkowa
             # Lekki restart: powrót do Mistrza i EPS 0.5
             
-            if episode_count >= 1000 and episode_count % 500 == 0:
-                if episode_count % 1000 == 0:
-                    agent.alpha = max(0.01, agent.alpha * 0.9999)
-                old_avg_dots = avg_dots
-                avg_dots = sum(dots_history) / len(dots_history)
+            # if episode_count >= 1000 and episode_count % 500 == 0:
+            #     if episode_count % 1000 == 0:
+            #         agent.alpha = max(0.01, agent.alpha * 0.9999)
+            #     old_avg_dots = avg_dots
+            #     avg_dots = sum(dots_history) / len(dots_history)
 
-                if episode_count % 2500 == 0 and avg_dots > 155:
-                        agent.epsilon = 0.8
-                        print(f"🔥 [SIM {sim_id}] HARD RESET (Epizod {episode_count})! Średnia {avg_dots:.1f} to dramat. Szukamy wszystkiego od zera.")
+            #     if episode_count % 2500 == 0 and avg_dots > 155:
+            #             agent.epsilon = 0.8
+            #             print(f"🔥 [SIM {sim_id}] HARD RESET (Epizod {episode_count})! Średnia {avg_dots:.1f} to dramat. Szukamy wszystkiego od zera.")
 
-                should_reset = avg_dots > 152 or (avg_dots >= old_avg_dots and avg_dots > 50)
+            #     should_reset = avg_dots > 152 or (avg_dots >= old_avg_dots and avg_dots > 50)
                 
-                if should_reset:
-                    print(f">>> [SIM {sim_id}] KRYZYS STATYSTYCZNY! Średnia: {avg_dots:.1f} dots.")
+            #     # if should_reset:
+            #     #     print(f">>> [SIM {sim_id}] KRYZYS STATYSTYCZNY! Średnia: {avg_dots:.1f} dots.")
                     
-                    if best_q_table is not None:
-                        # Wracamy do mistrza, bo obecna ścieżka ewolucji to ślepy zaułek
-                        agent.q_table = copy.deepcopy(best_q_table)
-                        agent.epsilon = 0.3
-                        print(f"   -> Przywrócono Mistrza i podbito EPS do 0.3")
-                    else:
-                        # Jeśli nie ma mistrza, po prostu dajemy potężną dawkę losowości
-                        agent.epsilon = 0.7
-                        print(f"   -> Brak Mistrza. Hard Reset EPS do 0.7")
+            #     #     if best_q_table is not None:
+            #     #         # Wracamy do mistrza, bo obecna ścieżka ewolucji to ślepy zaułek
+            #     #         agent.q_table = copy.deepcopy(best_q_table)
+            #     #         agent.epsilon = 0.3
+            #     #         print(f"   -> Przywrócono Mistrza i podbito EPS do 0.3")
+            #     #     else:
+            #     #         # Jeśli nie ma mistrza, po prostu dajemy potężną dawkę losowości
+            #     #         agent.epsilon = 0.7
+            #     #         print(f"   -> Brak Mistrza. Hard Reset EPS do 0.7")
                 
-                else:
-                    # Progres jest OK, nie przeszkadzamy mu
-                    print(f">>> [SIM {sim_id}] Kontrola: Średnia {avg_dots:.1f} - uczy się poprawnie.")
+            #     # else:
+            #         # Progres jest OK, nie przeszkadzamy mu
+            #     print(f">>> [SIM {sim_id}] Kontrola: Średnia {avg_dots:.1f} - uczy się poprawnie.")
 
             # 6. Zapisywanie milestone'ów wiedzy
             q_size = len(agent.q_table)
@@ -852,7 +923,7 @@ if __name__ == "__main__":
     
     for i in range(num_sims):
         # Tylko pierwsza symulacja (ID 0) ma okno (True)
-        p = multiprocessing.Process(target=start_sim, args=(i, False))
+        p = multiprocessing.Process(target=start_sim, args=(i, i==0))
         p.start()
         processes.append(p)
         
