@@ -220,6 +220,36 @@ class QLearningAgent:
         danger_zone = (threat_up, threat_down, threat_left, threat_right)
 
         return (wall_state, food_dir, danger_zone, is_scared_global)
+            # Obliczamy odległość Manhattan: $d = |x_1 - x_2| + |y_1 - y_2|$
+            dist = abs(px - gx) + abs(py - gy)
+            
+            if dist < nearest_ghost_dist:
+                nearest_ghost_dist = dist
+                # Ustalamy kierunek (-1: lewo/góra, 0: ta sama linia, 1: prawo/dół)
+                dx = 1 if gx > px else (-1 if gx < px else 0)
+                dy = 1 if gy > py else (-1 if gy < py else 0)
+                ghost_rel_dir = (dx, dy)
+
+        # 3. Kwantyzacja odległości (Bucketing)
+        # Nie chcemy dokładnej liczby pól (np. 4.5), bo to stworzy za dużo stanów.
+        # Dzielimy odległość na 4 strefy:
+        # 0: brak zagrożenia (bardzo daleko), 1: blisko (3-5 pól), 2: krytycznie (1-2 pola)
+        if nearest_ghost_dist <= 2:
+            dist_zone = 2
+        elif nearest_ghost_dist <= 5:
+            dist_zone = 1
+        else:
+            dist_zone = 0
+            ghost_rel_dir = (0, 0) # Jeśli duch jest daleko, ignorujemy jego kierunek
+
+        # Wynikowy stan: (Otoczenie, GPS, Strefa_Dystansu, Kierunek_Ducha, Czy_Są_Przestraszone)
+        return (
+            tuple(surroundings), 
+            bfs_suggested_action, 
+            dist_zone, 
+            ghost_rel_dir, 
+            is_scared_global
+        )
 
     def choose_action(self, state, valid_moves):
         if state not in self.q_table:
